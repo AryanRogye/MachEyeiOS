@@ -55,6 +55,12 @@ struct Home: View {
         }
     }
     
+    func canLoadBinaries(for binaries: String) -> Bool {
+        return binaries.withCString { cStr in
+            return canLoadDylibABS(cStr) != 0
+        }
+    }
+    
     func getLoadedBinaries() -> [String] {
         var count: Int32 = 0
         guard let cArray = get_loaded_binaries_via_memory(&count) else {
@@ -108,6 +114,12 @@ struct Home: View {
                     if binary.contains("PrivateFramework") {
                         HStack {
                             Text(binary)
+                            Spacer()
+                            if canLoadBinaries(for: binary) {
+                                Text("Can Load")
+                            } else {
+                                Text("Cannot Load")
+                            }
                         }
                         .frame(maxHeight: .infinity)
                         .padding(.horizontal, 10)

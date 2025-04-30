@@ -30,6 +30,15 @@ int canLoadDylib(const char* path) {
     return 0;
 }
 
+int canLoadDylibABS(const char* path) {
+    void *handle = dlopen(path, RTLD_LAZY);
+    if (handle) {
+        dlclose(handle);
+        return 1;
+    }
+    return 0;
+}
+
 
 char** get_loaded_binaries_via_memory(int *count_out) {
     uint32_t count = _dyld_image_count();
