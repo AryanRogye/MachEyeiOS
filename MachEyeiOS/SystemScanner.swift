@@ -9,10 +9,10 @@ import MachO
 import Foundation
 
 struct LoadedImageInfo_Swift {
-    var imageName : String,
-    headerPtr: UnsafePointer<mach_header>,
-    header : mach_header,
-    slide : Int
+    let imageName: String
+    let headerPtr : UnsafeMutablePointer<LoadedImageInfo_C>
+    let header: mach_header
+    let slide: Int
 }
 
 final class SystemScanner {
@@ -82,30 +82,40 @@ final class SystemScanner {
         return result
     }
     
-    func openDyib(for path: String) -> [LoadedImageInfo_Swift] {
-        var fetchedResults : [LoadedImageInfo_Swift] = []
+    func openDyib(for path: String) -> [UnsafeMutablePointer<LoadedImageInfo_C>] {
+        var fetchedResults : [UnsafeMutablePointer<LoadedImageInfo_C>] = []
         
         path.withCString { cStr in
             var count: Int32 = 0
             let resultsPtr = openDylibABS(cStr, &count)
             if let results = resultsPtr {
                 for i in 0..<Int(count) {
-                    let image = results[i]
-                    if let name = image.image_name {
-                        fetchedResults.append(
-                            LoadedImageInfo_Swift(
-                                imageName: String(cString: name),
-                                headerPtr: image.header,
-                                header: image.header!.pointee,
-                                slide: image.slide
-                            )
-                        )
-                    }
+                    let ptr = results.advanced(by: i)
+                    fetchedResults.append(ptr)
                 }
-                free(results) // VERY IMPORTANT — you allocated in C
+                free(results)
             }
         }
         return fetchedResults
+    }
+    
+    func convertLoadedImageSafe(_ ptrs: [UnsafeMutablePointer<LoadedImageInfo_C>]) -> [LoadedImageInfo_Swift] {
+        ptrs.compactMap { ptr in
+            guard let imageNameCStr = ptr.pointee.image_name,
+                  let headerPtr = ptr.pointee.header else {
+                return nil
+            }
+
+            let imageName = String(cString: imageNameCStr)
+            let header = headerPtr.pointee
+
+            return LoadedImageInfo_Swift(
+                imageName: imageName,
+                headerPtr: ptr,
+                header: header,
+                slide: ptr.pointee.slide
+            )
+        }
     }
 
 
@@ -113,5 +123,26 @@ final class SystemScanner {
         return binaries.withCString { cStr in
             return canLoadDylibABS(cStr) != 0
         }
+    }
+    
+    func viewSymbolTree(for imageInfoPtr: UnsafeMutablePointer<LoadedImageInfo_C>) -> [String] {
+        var count: Int32 = 0
+        guard let result = getLibFunctions(
+            UnsafeRawPointer(imageInfoPtr.pointee.header).assumingMemoryBound(to: mach_header_64.self),
+            imageInfoPtr.pointee.slide,
+            &count
+        ) else {
+            return []
+        }
+        var symbols: [String] = []
+        for i in 0..<Int(count) {
+            if let cStr = result[i] {
+                symbols.append(String(cString: cStr))
+                free(cStr) // free strdup-ed string
+            }
+        }
+        
+        free(result) // free array of char* pointers
+        return symbols
     }
 }

@@ -10,40 +10,55 @@ import SwiftUI
 struct BinaryInspector: View {
     private var path: String
     @State private var loadedImageInfo: [LoadedImageInfo_Swift]?
+    @State private var loadedImageInfoPtr: [UnsafeMutablePointer<LoadedImageInfo_C>]?
     @State private var didOpenForMachO: Bool = false
+    
+    @State private var symbolTree: [String] = []
     
     init(path: String) {
         self.path = path
     }
+    
     var body: some View {
         ZStack {
             LinearGradient(colors: [.black, .white.opacity(0.2)], startPoint: .top, endPoint: .bottom)
                 .edgesIgnoringSafeArea(.all)
-            VStack {
-                Text(path)
-                Button(action: {
-                    loadedImageInfo = SystemScanner.shared.openDyib(for: path)
-                    didOpenForMachO = true
-                } ) {
-                    Text("Open For Mach-O")
-                }
-                Spacer()
-                if let loadedImageSafe = loadedImageInfo {
-                    VStack {
-                        if let header = loadedImageSafe.first?.headerPtr {
-                            let addrString = String(format: "%p", header)
-                            Text("Header Addy: \(addrString)")
-                        }
-                        ScrollView {
+            ScrollView {
+                VStack {
+                    Text(path)
+                    Button(action: {
+                        loadedImageInfoPtr = SystemScanner.shared.openDyib(for: path)
+                        loadedImageInfo =  SystemScanner.shared.convertLoadedImageSafe(loadedImageInfoPtr!)
+                        didOpenForMachO = true
+                    } ) {
+                        Text("Open For Mach-O")
+                    }
+                    Spacer()
+                    if let loadedImageSafe = loadedImageInfo {
+                        VStack {
+                            if let header = loadedImageSafe.first?.headerPtr {
+                                let addrString = String(format: "%p", header)
+                                Text("Header Addy: \(addrString)")
+                            }
                             ForEach(loadedImageSafe, id: \.imageName) { info in
                                 _previewMach_O(for: info)
                             }
                         }
                     }
-                }
-                if didOpenForMachO {
-                    Button(action: {} ) {
-                        Text("")
+                    if didOpenForMachO {
+                        if let imageInfo = loadedImageInfoPtr {
+                            Button(action: { symbolTree = SystemScanner.shared.viewSymbolTree(for: imageInfo[0]) } ) {
+                                Text("View Symbol Tree")
+                            }
+                            
+                            ForEach(symbolTree, id: \.self) { symbol in
+                                HStack {
+                                    Text(symbol)
+                                        .foregroundStyle(.white)
+                                }
+                                .frame(maxHeight: .infinity)
+                            }
+                        }
                     }
                 }
             }

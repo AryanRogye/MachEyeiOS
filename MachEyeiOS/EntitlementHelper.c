@@ -66,21 +66,11 @@ char** get_loaded_binaries_via_memory(int *count_out) {
     return binaries;
 }
 
-
-LoadedImageInfo* openDylibABS(const char* path, int *outCount) {
-//    printf("Called Open Libs\n");
-//    /// Open the Path
-//    void* handle = dlopen(path, RTLD_NOW);
-//    
-//    if (handle) {
-//        dlclose(handle);
-//        printf("Couldnt Open Lib\n");
-//        return NULL;
-//    }
+LoadedImageInfo_C* openDylibABS(const char* path, int *outCount) {
     /// Get the component
     const char *component = getLastPathComponent(path);
     uint32_t image_count = _dyld_image_count();
-    LoadedImageInfo* imageInfo = calloc(image_count, sizeof(LoadedImageInfo));
+    LoadedImageInfo_C* imageInfo = calloc(image_count, sizeof(LoadedImageInfo_C));
     
     int found = 0;
     
@@ -89,11 +79,51 @@ LoadedImageInfo* openDylibABS(const char* path, int *outCount) {
         if (strstr(imageName, component)) {
             const struct mach_header *header = _dyld_get_image_header(i);
             intptr_t slide = _dyld_get_image_vmaddr_slide(i);
-            imageInfo[found++] = (LoadedImageInfo){imageName, header, slide};
+            imageInfo[found++] = (LoadedImageInfo_C){imageName, header, slide};
         }
     }
     
     *outCount = found;
     printf("Count: %d\n", *outCount);
     return imageInfo;
+}
+
+char** getLibFunctions(const struct mach_header_64* header, intptr_t slide, int* outCount) {
+    const uint8_t* ptr = (const uint8_t*)(header + 1);
+    uint32_t ncmds = header->ncmds;
+
+    int capacity = 32;
+    int count = 0;
+    char** result = (char**)malloc(sizeof(char*) * capacity);
+
+    for (uint32_t i = 0; i < ncmds; i++) {
+        const struct load_command* cmd = (const struct load_command*)ptr;
+
+        if (cmd->cmd == LC_SEGMENT_64) {
+            const struct segment_command_64* seg = (const struct segment_command_64*)cmd;
+
+            const struct section_64* sections = (const struct section_64*)(seg + 1);
+            for (uint32_t j = 0; j < seg->nsects; j++) {
+                const struct section_64* sect = &sections[j];
+
+                char buffer[256];
+                snprintf(buffer, sizeof(buffer), "%s: 0x%llx – 0x%llx",
+                         sect->sectname,
+                         sect->addr + slide,
+                         sect->addr + slide + sect->size);
+
+                if (count >= capacity) {
+                    capacity *= 2;
+                    result = (char**)realloc(result, sizeof(char*) * capacity);
+                }
+
+                result[count++] = strdup(buffer);
+            }
+        }
+
+        ptr += cmd->cmdsize;
+    }
+
+    *outCount = count;
+    return result;
 }
