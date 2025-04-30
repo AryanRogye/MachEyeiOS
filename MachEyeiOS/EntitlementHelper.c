@@ -6,6 +6,7 @@
 //
 
 #import "EntitlementHelper.h"
+#include <mach-o/nlist.h>
 #include <mach-o/dyld.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -95,6 +96,8 @@ char** getLibFunctions(const struct mach_header_64* header, intptr_t slide, int*
     int capacity = 32;
     int count = 0;
     char** result = (char**)malloc(sizeof(char*) * capacity);
+    
+    const struct symtab_command *symtab = NULL;
 
     for (uint32_t i = 0; i < ncmds; i++) {
         const struct load_command* cmd = (const struct load_command*)ptr;
@@ -119,9 +122,48 @@ char** getLibFunctions(const struct mach_header_64* header, intptr_t slide, int*
 
                 result[count++] = strdup(buffer);
             }
+        } else if (cmd->cmd == LC_SYMTAB) {
+        // LC_SYMTAB: offsets for
+        //      symoff: offset to the symbol table
+        //      nsyms: number of symbols
+        //      stroff: offset to the string table
+        //      strsize: size of the string table
+            symtab = (const struct symtab_command *)cmd;
         }
-
         ptr += cmd->cmdsize;
+    }
+    
+    /// Once the LC_SYMTAB has the SymTab we can get the metadata
+    if (symtab) {
+        const struct nlist_64 *symTable = (const struct nlist_64 *)((const uint8_t *)header + symtab->symoff);
+        const char *strTable = (const char *)((const uint8_t *)header + symtab->stroff);
+        
+        for (uint32_t i = 0; i < symtab->nsyms; i++) {
+            const struct nlist_64 *sym = &symTable[i];
+            
+            uint32_t strx = sym->n_un.n_strx;
+
+            // Protect against out-of-bounds read
+            if (strx >= symtab->strsize) {
+                printf("❌ Skipping invalid strx %u\n", strx);
+                continue;
+            }
+
+            const char *name = strTable + strx;
+
+            // Now it's safe to access name[0]
+            if (name[0] == '\0') continue;
+            
+            if ((sym->n_type & N_TYPE) == N_SECT && (sym->n_type & N_EXT)) {
+                if (count >= capacity) {
+                    printf("💥 Reallocating at count = %d, capacity = %d\n", count, capacity);
+                    capacity *= 2;
+                    result = (char **)realloc(result, sizeof(char *) * capacity);
+                    if (!result) return NULL;
+                }
+                result[count++] = strdup(name);
+            }
+        }
     }
 
     *outCount = count;
