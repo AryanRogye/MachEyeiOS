@@ -31,7 +31,11 @@ int isTaskForPidAllowed(void) {
 
 int canLoadDylib(const char* path) {
     char fullPath[512];
-    snprintf(fullPath, sizeof(fullPath), "/System/Library/PrivateFrameworks/%s", path);
+    snprintf(fullPath, sizeof(fullPath),
+             "/System/Library/PrivateFrameworks/%s/%.*s",
+             path,
+             (int)(strlen(path) - strlen(".framework")),
+             path);
     void *handle = dlopen(fullPath, RTLD_LAZY);
     if (handle) {
         dlclose(handle);
@@ -167,5 +171,36 @@ char** getLibFunctions(const struct mach_header_64* header, intptr_t slide, int*
     }
 
     *outCount = count;
+    return result;
+}
+
+char** getMachOBinary(const char* path, int* outCount) {
+    FILE* file = fopen(path, "rb");
+    if (!file) {
+        *outCount = 0;
+        printf("Invalid File: %s\n", path);
+        return NULL;
+    }
+
+    fseek(file, 0, SEEK_END);
+    long size = ftell(file);
+    rewind(file);
+
+    char* buffer = malloc(size + 1);
+    if (!buffer) {
+        fclose(file);
+        *outCount = 0;
+        return NULL;
+    }
+
+    fread(buffer, 1, size, file);
+    buffer[size] = '\0'; // null-terminate for safety
+
+    fclose(file);
+
+    char** result = malloc(sizeof(char*));
+    result[0] = buffer;
+    *outCount = 1;
+
     return result;
 }

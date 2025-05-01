@@ -40,6 +40,26 @@ final class SystemScanner {
         "ProactiveSupport.framework"
     ]
     
+    func getBinary(from path: String) -> String {
+//        char** getMachOBinary(char* path, int* outCount);
+        var ret: String = ""
+        path.withCString { cStr in
+            var count: Int32 = 0
+            if let result = getMachOBinary(cStr, &count) {
+                for i in 0..<Int(count) {
+                    if let cString = result[i] {
+                        let swiftStr = String(cString: cString)
+                        ret += swiftStr + "\n"
+                        print(swiftStr)
+                        free(cString)
+                    }
+                }
+                free(result)
+            }
+        }
+        return ret
+    }
+    
     func testGetTaskAllow() -> Bool {
         var task: mach_port_t = 0
         let pid = getpid()
@@ -97,6 +117,22 @@ final class SystemScanner {
             }
         }
         return fetchedResults
+    }
+    
+    func resolveFrameworkBinary(for framework: String) -> String? {
+        let searchPaths = [
+            "/System/Library/PrivateFrameworks/",
+            "/Library/Apple/System/Library/PrivateFrameworks/"
+        ]
+        
+        for basePath in searchPaths {
+            let fullPath = basePath + framework
+            if let bundle = Bundle(path: fullPath),
+               let binary = bundle.executablePath {
+                return binary
+            }
+        }
+        return nil
     }
     
     func convertLoadedImageSafe(_ ptrs: [UnsafeMutablePointer<LoadedImageInfo_C>]) -> [LoadedImageInfo_Swift] {

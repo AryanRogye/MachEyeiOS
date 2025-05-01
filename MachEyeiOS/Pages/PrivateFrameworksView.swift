@@ -28,25 +28,33 @@ struct PrivateFrameworksView: View {
                 Text("PID: \(isTaskForPidAllowed() == 1 ? "YES" : "NO")")
                 ScrollView {
                     ForEach(SystemScanner.shared.privateFrameworks, id: \.self) { framework in
-                        HStack {
-                            Text(framework)
-                            Spacer()
-                            VStack {
-                                if SystemScanner.shared.checkFrameworkExists(path: framework) {
-                                    Text("API THERE")
-                                    if SystemScanner.shared.canLoadPrivateFrameworks(for: framework) {
-                                        Text("Can Load Lib")
+                        let frameworkName = framework.replacingOccurrences(of: ".framework", with: "")
+                        NavigationLink(destination: BinaryInspector(path: "/System/Library/PrivateFrameworks/\(frameworkName).framework/\(frameworkName)")) {
+                            HStack {
+                                Text(framework)
+                                    .font(.caption)
+                                    .foregroundStyle(.white)
+                                    .padding()
+
+                                Spacer()
+                                VStack {
+                                    if SystemScanner.shared.checkFrameworkExists(path: framework) {
+                                        Text("API THERE")
+                                        if SystemScanner.shared.canLoadPrivateFrameworks(for: framework) {
+                                            Text("Can Load Lib")
+                                        } else {
+                                            Text("Cannot Load Lib")
+                                        }
                                     } else {
-                                        Text("Cannot Load Lib")
+                                        Text("API NOT THERE")
                                     }
-                                } else {
-                                    Text("API NOT THERE")
                                 }
                             }
+                            .frame(maxHeight: .infinity)
+                            .padding(.horizontal, 10)
+                            .border(Color.white, width: 1)
                         }
-                        .frame(maxHeight: 100)
-                        .padding(.horizontal, 10)
-                        .border(Color.black, width: 1)
+                        .buttonStyle(.plain)
                     }
                 }
             }

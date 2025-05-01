@@ -70,6 +70,19 @@ struct LoadedBinariesView: View {
     
     @ViewBuilder
     func searchBar() -> some View {
+#if os(macOS)
+        HStack {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.gray)
+            TextField("Search", text: $searchItem)
+                .textFieldStyle(.plain)
+                .autocorrectionDisabled()
+        }
+        .padding(10)
+        .background(Color(.gray))
+        .cornerRadius(10)
+        .padding(.horizontal)
+#elseif os(iOS)
         HStack {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.gray)
@@ -82,6 +95,7 @@ struct LoadedBinariesView: View {
         .background(Color(.systemGray6))
         .cornerRadius(10)
         .padding(.horizontal)
+#endif
     }
 }
 

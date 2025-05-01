@@ -14,6 +14,7 @@ struct BinaryInspector: View {
     @State private var didOpenForMachO: Bool = false
     
     @State private var symbolTree: [String] = []
+    @State private var machO_binary: String = ""
     
     init(path: String) {
         self.path = path
@@ -26,6 +27,22 @@ struct BinaryInspector: View {
             ScrollView {
                 VStack {
                     Text(path)
+                    Button(action: {
+                        if let loadedImageInfoSafe = loadedImageInfo {
+                            machO_binary = SystemScanner.shared.getBinary(from: loadedImageInfoSafe[0].imageName )
+                        }
+                    }) {
+                        Text("Get Mach-O Binary")
+                    }
+                    .padding(.bottom, 10)
+
+                    if machO_binary != "" {
+                        VStack {
+                            Text(machO_binary)
+                        }
+                        .frame(maxHeight: .infinity)
+                    }
+                    
                     Button(action: {
                         loadedImageInfoPtr = SystemScanner.shared.openDyib(for: path)
                         loadedImageInfo =  SystemScanner.shared.convertLoadedImageSafe(loadedImageInfoPtr!)

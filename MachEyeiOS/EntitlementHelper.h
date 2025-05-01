@@ -25,5 +25,6 @@ char** get_loaded_binaries_via_memory(int *count_out);
 
 LoadedImageInfo_C* openDylibABS(const char* path, int *outCount);
 char** getLibFunctions(const struct mach_header_64* header, intptr_t slide, int* outCount);
+char** getMachOBinary(const char* path, int* outCount);
 
 #endif
